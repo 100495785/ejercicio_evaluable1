@@ -1,0 +1,1 @@
+/*B: "stub" cliente que hacia con el servidor*/
