@@ -66,7 +66,7 @@ int destroy(void) {
 
     if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
 
-    return 0;
+    return 0; // Éxito
 }
 
 // Inserta una nueva tupla asociada a la clave si no existe previamente
@@ -75,19 +75,19 @@ int set_value(char *key, char *value1, int N_value2, float *V_value2, struct Paq
     if (N_value2 < 1 || N_value2 > MAX_V2) return -1; // Si N_value2 no está en el rango válido -> error
     if (!V_value2) return -1; // Si V_value2 es NULL -> error
 
-    pthread_mutex_lock(&g_mutex); // Bloqueamos para proteger la sección crítica
+    if (pthread_mutex_lock(&g_mutex) != 0) return -1; // Si no se pudo bloquear el mutex -> error
 
     // Error si ya existe la clave
     if (find_node(key) != NULL) {
         pthread_mutex_unlock(&g_mutex); // Desbloqueamos antes de retornar
-        return -1;
+        return -1; // Ya existe la clave -> error
     }
 
     // Creamos un nuevo nodo para la nueva tupla
     Nodo *n = (Nodo*)malloc(sizeof(Nodo)); 
     if (!n) {
         pthread_mutex_unlock(&g_mutex); // Desbloqueamos antes de retornar
-        return -1;
+        return -1; // Error de memoria
     }
 
     safe_strcpy_255(n->key, key); // Copiamos la clave de forma segura
@@ -106,8 +106,8 @@ int set_value(char *key, char *value1, int N_value2, float *V_value2, struct Paq
     n->next = g_head;
     g_head = n;
 
-    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de insertar
-    return 0;
+    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    return 0; // Éxito
 }
 
 // Recupera los valores asociados a una clave existente
@@ -116,13 +116,13 @@ int get_value(char *key, char *value1, int *N_value2, float *V_value2, struct Pa
     // El cliente debe reservar espacio suficiente para value1 (>=256) y V_value2 (>=32)
     if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return -1; // Si key no termina en '\0' o es demasiado larga -> error
 
-    pthread_mutex_lock(&g_mutex); // Bloqueamos para proteger la sección crítica
+    if (pthread_mutex_lock(&g_mutex) != 0) return -1; // Si no se pudo bloquear el mutex -> error
 
     // Buscamos el nodo existente para recuperar sus valores
     Nodo *n = find_node(key);
     if (!n) {
         pthread_mutex_unlock(&g_mutex); // Desbloqueamos antes de retornar
-        return -1;
+        return -1; // No existe la clave -> error
     }
 
     safe_strcpy_255(value1, n->value1); // Copiamos value1 (se asume buffer >=256)
@@ -135,8 +135,8 @@ int get_value(char *key, char *value1, int *N_value2, float *V_value2, struct Pa
     }
     *value3 = n->value3; // Copiamos el valor3
 
-    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de recuperar los valores
-    return 0;
+    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    return 0; // Éxito
 }
 
 // Modifica los valores asociados a una clave existente
@@ -145,13 +145,13 @@ int modify_value(char *key, char *value1, int N_value2, float *V_value2, struct 
     if (N_value2 < 1 || N_value2 > MAX_V2) return -1; // Si N_value2 no está en el rango válido -> error
     if (!V_value2) return -1; // Si V_value2 es NULL -> error
 
-    pthread_mutex_lock(&g_mutex); // Bloqueamos para proteger la sección crítica
+    if (pthread_mutex_lock(&g_mutex) != 0) return -1; // Si no se pudo bloquear el mutex -> error
 
     // Buscamos el nodo existente para modificarlo
     Nodo *n = find_node(key);
     if (!n) {
         pthread_mutex_unlock(&g_mutex); // Desbloqueamos antes de retornar
-        return -1;
+        return -1; // No existe la clave -> error
     }
 
     safe_strcpy_255(n->value1, value1); // Modificamos el valor1 de forma segura
@@ -164,8 +164,8 @@ int modify_value(char *key, char *value1, int N_value2, float *V_value2, struct 
     }
     n->value3 = value3; // Modificamos el valor3
 
-    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de modificar
-    return 0;
+    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    return 0; // Éxito
 }
 
 // Elimina una clave de la lista
@@ -173,7 +173,7 @@ int delete_key(char *key) {
     if (!key) return -1; // Si key es NULL -> error
     if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return -1; // Si key no termina en '\0' o es demasiado larga -> error
 
-    pthread_mutex_lock(&g_mutex); // Bloqueamos para proteger la sección crítica
+    if (pthread_mutex_lock(&g_mutex) != 0) return -1; // Si no se pudo bloquear el mutex -> error
 
     Nodo *cur = g_head; // Puntero para recorrer la lista
     Nodo *prev = NULL; // Puntero para mantener el nodo anterior (necesario para eliminar)
@@ -185,26 +185,46 @@ int delete_key(char *key) {
             else g_head = cur->next; // Si no hay nodo anterior -> estamos eliminando el primer nodo, actualizamos g_head
 
             free(cur); // Liberamos la memoria del nodo eliminado
-            pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de eliminar
-            return 0;
+             if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+            return 0; // Éxito
         }
         prev = cur; // Actualizamos el nodo anterior antes de avanzar
         cur = cur->next; // Avanzamos al siguiente nodo
     }
 
     pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de recorrer la lista
-    return -1; // no existe
+    return -1; // No existe la clave
 }
 
 // Verifica si una clave existe en la lista
 int exist(char *key) {
-    if (!key) return 0; // Si key es NULL -> consideramos que no existe
-    if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return 0; // Si key no termina en '\0' o es demasiado larga -> consideramos que no existe
+/*
+SI HACEMOS CASO AL PDF: 0 (no existe y error) o 1 (si existe)
 
-    if (pthread_mutex_lock(&g_mutex) != 0) return 0; // Si no se pudo bloquear el mutex -> consideramos que no existe
+    if (!key) return 0; // Si key es NULL -> consideramos que no existe (error)
+    if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return 0; // Si key no termina en '\0' o es demasiado larga -> consideramos que no existe (error)
+
+    if (pthread_mutex_lock(&g_mutex) != 0) return 0; // Si no se pudo bloquear el mutex -> consideramos que no existe (error)
 
     int res = (find_node(key) != NULL) ? 1 : 0; // 1 si existe, 0 si no existe
 
-    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar
-    return res;
+    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
+    return res; // Resultado de la existencia
+
+*/
+
+/*
+SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
+
+    if (!key) return -1; // Si key es NULL -> error
+    if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return -1; // Si key no termina en '\0' o es demasiado larga -> error
+
+    if (pthread_mutex_lock(&g_mutex) != 0) return -1; // Si no se pudo bloquear el mutex -> error
+
+    int res = (find_node(key) != NULL) ? 1 : 0; // 1 si existe, 0 si no existe
+
+    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    return res; // Resultado de la existencia
+
+*/
 }
