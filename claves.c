@@ -64,6 +64,8 @@ int destroy(void) {
     }
     g_head = NULL; // Reiniciamos el puntero al inicio
 
+    /* Usamos if para comprobar pthread_mutex_unlock porque destroy no deja un estado parcial
+    Si falla el unlock, es coherente devolver error interno */
     if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
 
     return 0; // Éxito
@@ -106,7 +108,9 @@ int set_value(char *key, char *value1, int N_value2, float *V_value2, struct Paq
     n->next = g_head;
     g_head = n;
 
-    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    /* No usamos if para comprobar pthread_mutex_unlock porque la operación ya se ha realizado con éxito
+    Devolver -1 aquí podría indicar error aunque la clave ya haya sido insertada */
+    pthread_mutex_unlock(&g_mutex); // Desbloqueamos el mutex
     return 0; // Éxito
 }
 
@@ -135,7 +139,9 @@ int get_value(char *key, char *value1, int *N_value2, float *V_value2, struct Pa
     }
     *value3 = n->value3; // Copiamos el valor3
 
-    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    /* No usamos if para comprobar pthread_mutex_unlock porque los datos ya han sido copiados correctamente
+    Devolver -1 aquí podría indicar error aunque los datos se hayan copiado */
+    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de recuperar los valores
     return 0; // Éxito
 }
 
@@ -164,7 +170,9 @@ int modify_value(char *key, char *value1, int N_value2, float *V_value2, struct 
     }
     n->value3 = value3; // Modificamos el valor3
 
-    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    /* No usamos if para comprobar pthread_mutex_unlock porque los datos ya han sido modificados correctamente
+    Devolver -1 aquí podría indicar error aunque los datos se hayan modificado */
+    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de modificar los valores
     return 0; // Éxito
 }
 
@@ -185,13 +193,14 @@ int delete_key(char *key) {
             else g_head = cur->next; // Si no hay nodo anterior -> estamos eliminando el primer nodo, actualizamos g_head
 
             free(cur); // Liberamos la memoria del nodo eliminado
-             if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+            pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de eliminar el nodo
             return 0; // Éxito
         }
         prev = cur; // Actualizamos el nodo anterior antes de avanzar
         cur = cur->next; // Avanzamos al siguiente nodo
     }
 
+    // No usamos if para comprobar pthread_mutex_unlock: el resultado funcional ya es "clave no existe" -1
     pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de recorrer la lista
     return -1; // No existe la clave
 }
@@ -208,6 +217,7 @@ SI HACEMOS CASO AL PDF: 0 (no existe y error) o 1 (si existe)
 
     int res = (find_node(key) != NULL) ? 1 : 0; // 1 si existe, 0 si no existe
 
+    // No usamos if para comprobar pthread_mutex_unlock: ya hemos calculado el resultado funcional res
     pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
     return res; // Resultado de la existencia
 
@@ -223,7 +233,8 @@ SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
 
     int res = (find_node(key) != NULL) ? 1 : 0; // 1 si existe, 0 si no existe
 
-    if (pthread_mutex_unlock(&g_mutex) != 0) return -1; // Si no se pudo desbloquear el mutex -> error
+    // No usamos if para comprobar pthread_mutex_unlock: ya hemos calculado el resultado funcional res
+    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
     return res; // Resultado de la existencia
 
 */
