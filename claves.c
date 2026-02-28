@@ -209,7 +209,6 @@ int delete_key(char *key) {
 int exist(char *key) {
 /*
 SI HACEMOS CASO AL PDF: 0 (no existe y error) o 1 (si existe)
-
     if (!key) return 0; // Si key es NULL -> consideramos que no existe (error)
     if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return 0; // Si key no termina en '\0' o es demasiado larga -> consideramos que no existe (error)
 
@@ -220,11 +219,8 @@ SI HACEMOS CASO AL PDF: 0 (no existe y error) o 1 (si existe)
     // No usamos if para comprobar pthread_mutex_unlock: ya hemos calculado el resultado funcional res
     pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
     return res; // Resultado de la existencia
-
 */
-
-/*
-SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
+// SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
 
     if (!key) return -1; // Si key es NULL -> error
     if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return -1; // Si key no termina en '\0' o es demasiado larga -> error
@@ -236,6 +232,4 @@ SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
     // No usamos if para comprobar pthread_mutex_unlock: ya hemos calculado el resultado funcional res
     pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
     return res; // Resultado de la existencia
-
-*/
 }
