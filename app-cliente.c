@@ -261,5 +261,6 @@ int main(void) {
     r = destroy();
     CHECK_EQ_INT("destroy() final 2", r, 0);
 
+    printf("=== TODO OK ===\n");
     return 0;
 }
