@@ -3,11 +3,11 @@
 #include "claves.h" // Prototipos de la API y definición de struct Paquete
 
 #include <pthread.h> // Para mutex
-#include <stdlib.h> // Para malloc/free
-#include <string.h> // Para strncpy/strlen/strnlen
+#include <stdlib.h> // Para malloc, free
+#include <string.h> // Para strncpy, strlen, strnlen
 
 #define MAX_STR 256 // 255 chars útiles + '\0'
-#define MAX_V2  32 // Máximo número de elementos en V_value2 (según contrato, mínimo 1, máximo 32)
+#define MAX_V2 32 // Máximo número de elementos en V_value2 (según contrato, mínimo 1, máximo 32)
 
 // Nodo de la lista enlazada para almacenar cada clave y sus valores asociados
 typedef struct Nodo {
@@ -207,21 +207,6 @@ int delete_key(char *key) {
 
 // Verifica si una clave existe en la lista
 int exist(char *key) {
-/*
-SI HACEMOS CASO AL PDF: 0 (no existe y error) o 1 (si existe)
-    if (!key) return 0; // Si key es NULL -> consideramos que no existe (error)
-    if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return 0; // Si key no termina en '\0' o es demasiado larga -> consideramos que no existe (error)
-
-    if (pthread_mutex_lock(&g_mutex) != 0) return 0; // Si no se pudo bloquear el mutex -> consideramos que no existe (error)
-
-    int res = (find_node(key) != NULL) ? 1 : 0; // 1 si existe, 0 si no existe
-
-    // No usamos if para comprobar pthread_mutex_unlock: ya hemos calculado el resultado funcional res
-    pthread_mutex_unlock(&g_mutex); // Desbloqueamos después de verificar la existencia
-    return res; // Resultado de la existencia
-*/
-// SI HACEMOS CASO A CLAVES.H: 0 (no existe), 1 (si existe) o -1 (error)
-
     if (!key) return -1; // Si key es NULL -> error
     if (strnlen(key, MAX_STR) > (MAX_STR - 1)) return -1; // Si key no termina en '\0' o es demasiado larga -> error
 
