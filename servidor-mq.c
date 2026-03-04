@@ -167,7 +167,7 @@ int main(void) {
     // Configuramos los atributos de la cola del servidor
     struct mq_attr attr;
     memset(&attr, 0, sizeof(attr));
-    attr.mq_maxmsg  = 20; // MLímite seguro para el número de mensajes en la cola
+    attr.mq_maxmsg  = 10; // MLímite seguro para el número de mensajes en la cola
     attr.mq_msgsize = sizeof(request_t); // Tamaño máximo de cada mensaje
 
     // Creamos la cola del servidor para recibir solicitudes de los clientes

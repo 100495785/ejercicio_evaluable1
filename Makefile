@@ -42,3 +42,35 @@ cliente_local: app-cliente.c libclaves.so claves.h
 # Regla para limpiar los archivos generados y dejar el directorio limpio
 clean:
 	rm -f *.o *.so cliente_local
+
+
+# =========================
+# AÑADIDOS PARTE B (MQ POSIX)
+# =========================
+
+# Regla "conveniente" para compilar todo (Parte A + Parte B)
+all_b: libclaves.so cliente_local libproxyclaves.so cliente_mq servidor_mq
+
+# 4. Compilar el proxy (stub cliente) como biblioteca dinámica libproxyclaves.so (Parte B)
+proxy-mq.o: proxy-mq.c claves.h
+	$(CC) $(CFLAGS) $(PICFLAGS) -c proxy-mq.c -o proxy-mq.o
+
+libproxyclaves.so: proxy-mq.o
+	$(CC) $(LDFLAGS_SO) -o libproxyclaves.so proxy-mq.o -lpthread -lrt
+
+# 5. Cliente MQ: mismo test (app-cliente.c) pero enlazado contra libproxyclaves.so
+cliente_mq: app-cliente.c libproxyclaves.so claves.h
+	$(CC) $(CFLAGS) -o cliente_mq app-cliente.c -L. -lproxyclaves $(RPATH)
+
+# 6. Servidor MQ: ejecutable que usa la API local (libclaves.so)
+# IMPORTANTE: enlazamos contra libclaves.so para reutilizar destroy/set/get/... ya implementadas en claves.c
+servidor-mq.o: servidor-mq.c claves.h
+	$(CC) $(CFLAGS) -c servidor-mq.c -o servidor-mq.o
+
+servidor_mq: servidor-mq.o libclaves.so claves.h
+	$(CC) $(CFLAGS) -o servidor_mq servidor-mq.o -L. -lclaves $(RPATH) -lrt
+
+
+# Regla extra para limpiar también los binarios de la Parte B
+clean_b: clean
+	rm -f proxy-mq.o servidor-mq.o cliente_mq servidor_mq libproxyclaves.so
