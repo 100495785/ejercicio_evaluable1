@@ -1,24 +1,23 @@
-// B: "stub" del cliente que se comunica con el servidor mediante colas POSIX
+/* Parte B: implementamos la misma API de claves.h, pero en vez de acceder a memoria local,
+se empaqueta la operación en un mensaje y la envía a un servidor a través de colas POSIX (mqueue)*/
 
 #define _POSIX_C_SOURCE 200809L // Para exponer APIs POSIX
 
-#include "claves.h" // Prototipos de la API y definición de struct Paquete
+#include "claves.h"  // prototipos de la API + struct Paquete
+#include <mqueue.h>  // colas POSIX
+#include <pthread.h> // threads
+#include <errno.h>   // errno
+#include <stdio.h>   // printf, perror
+#include <string.h>  // memset, strncpy, strlen
+#include <stdlib.h>  // malloc, free
+#include <unistd.h>  // getpid
+#include <time.h>    // clock_gettime
 
-#include <mqueue.h> // Para colas POSIX
-#include <pthread.h> // Para threads
-#include <errno.h> // Para errno
-#include <stdio.h> // Para printf, perror
-#include <string.h> // Para memset, strncpy, strlen
-#include <stdlib.h> // Para malloc, free
-#include <unistd.h> // Para getpid
-#include <time.h> // Para clock_gettime
-
-#define SRV_QUEUE   "/mq_claves_srv" // Nombre de la cola del servidor
-#define MAX_STR 256 // 255 chars útiles + '\0'
-#define MAX_V2 32 // Máximo número de elementos en V_value2
-#define MAX_QNAME 64 // Máximo nombre de cola
-
-#define REPLY_TIMEOUT_SEC 2 // Timeout para esperar respuesta del servidor (segundos)
+#define SRV_QUEUE   "/mq_claves_srv" // nombre de la cola del servidor
+#define MAX_STR 256  // 255 chars útiles + '\0'
+#define MAX_V2 32    // máximo número de elementos en V_value2
+#define MAX_QNAME 64 // máximo nombre de cola
+#define REPLY_TIMEOUT_SEC 2  // timeout para esperar respuesta del servidor (segundos)
 
 // Tipo de operación a ejecutar (parte A)
 typedef enum {
@@ -30,25 +29,25 @@ typedef enum {
     OP_EXIST
 } op_t;
 
-// Estructura de solicitud para enviar al servidor
+// Request que el cliente envía al servidor
 typedef struct {
-    op_t op; // Operación a realizar
-    char reply_queue[MAX_QNAME]; // Nombre de la cola de respuesta
+    op_t op;                     // Operación que quiere ejecutar
+    char reply_queue[MAX_QNAME]; // Nombre de la cola donde el servidor debe enviar la respuesta
 
-    char key[MAX_STR]; // Clave
-    char value1[MAX_STR]; // Valor 1
-    int  N_value2; // Número de elementos en V_value2
-    float V_value2[MAX_V2]; // Valores 2
-    struct Paquete value3; // Valor 3
+    char key[MAX_STR];       // Clave
+    char value1[MAX_STR];    // Valor 1
+    int  N_value2;           // Número de elementos en V_value2
+    float V_value2[MAX_V2];  // Valores 2
+    struct Paquete value3;   // Valor 3
 } request_t;
 
-// Estructura de respuesta para recibir del servidor
+// Response que el servidor envía al cliente
 typedef struct {
-    int ret; // Retorno de la operación del servidor
-    char value1[MAX_STR]; // Para GET
-    int  N_value2; // Para GET
-    float V_value2[MAX_V2]; // Para GET
-    struct Paquete value3; // Para GET
+    int ret;                 // Retorno de la operación del servidor
+    char value1[MAX_STR];    
+    int  N_value2; / / Para GET
+    float V_value2[MAX_V2]; 
+    struct Paquete value3;
 } response_t;
 
 static pthread_mutex_t g_name_mtx = PTHREAD_MUTEX_INITIALIZER; // Mutex para proteger la generación de nombres únicos de colas de respuesta
@@ -140,120 +139,120 @@ static int send_request_and_wait(const request_t *req_in, response_t *resp_out) 
     return 0; // Comunicación exitosa -> respuesta válida en resp_out
 }
 
-// Implementación API (cliente)
+// Implementación API pública (claves.h)
 
-// destroy()
-int destroy(void) {
-    request_t req; // Solicitud
-    memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_DESTROY; // Operación destroy
+int destroy(void) { 
+    request_t req; // Solo empaquetamos op y esperamos ret.
+    memset(&req, 0, sizeof(req)); 
+    req.op = OP_DESTROY;
 
-    if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
+    if (!make_reply_queue_name(req.reply_queue)) return -2;
 
-    response_t resp; // Respuesta del servidor
-    int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    response_t resp; 
+    int comm = send_request_and_wait(&req, &resp); 
+    if (comm == -2) return -2; 
 
     return resp.ret; // 0 / -1
 }
 
-// set_value()
+// Validamos lo que es realmente comprobable antes de mandar la solicitud al servidor para evitar tráfico innecesario
 int set_value(char *key, char *value1, int N_value2, float *V_value2, struct Paquete value3) {
     // Validaciones "sin contactar"
-
     if (!validate_strings(key, value1)) return -1; // Si el formato de las cadenas no es válido -> error "normal" del servicio
     if (N_value2 < 1 || N_value2 > MAX_V2) return -1; // Si el tamaño del array no es válido -> error "normal" del servicio
     if (!V_value2) return -1; // Si el puntero al array es nulo -> error "normal" del servicio
 
-    request_t req; // Solicitud
-    memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_SET; // Operación set
+    request_t req; 
+    memset(&req, 0, sizeof(req)); 
+    req.op = OP_SET; 
 
     if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
 
+    // Copiamos a buffers de tamaño fijo del protocolo (evitamos punteros crudos en mensajes)
     strncpy(req.key, key, MAX_STR - 1); // Copiar clave a la solicitud
-    req.key[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    req.key[MAX_STR - 1] = '\0';        // Asegurar terminación de cadena
 
-    strncpy(req.value1, value1, MAX_STR - 1); // Copiar value1 a la solicitud
-    req.value1[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    strncpy(req.value1, value1, MAX_STR - 1); 
+    req.value1[MAX_STR - 1] = '\0';          
 
-    req.N_value2 = N_value2; // Copiar tamaño del array
-    for (int i = 0; i < MAX_V2; i++) req.V_value2[i] = 0.0f; // Inicializar array a cero para evitar basura en campos no usados
-    for (int i = 0; i < N_value2; i++) req.V_value2[i] = V_value2[i]; // Copiar valores del array
-    req.value3 = value3; // Copiar estructura value3 a la solicitud
+    req.N_value2 = N_value2; 
 
-    response_t resp; // Respuesta del servidor
-    int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    // Inicializamos el vector completo para que el mensaje sea determinista (sin basura)
+    for (int i = 0; i < MAX_V2; i++) req.V_value2[i] = 0.0f; 
+    for (int i = 0; i < N_value2; i++) req.V_value2[i] = V_value2[i]; 
 
-    return resp.ret; // 0 / -1
+    response_t resp;
+    int comm = send_request_and_wait(&req, &resp); 
+    if (comm == -2) return -2; 
+
+    return resp.ret; 
 }
 
-// get_value()
+// Si la comunicación va bien pero el servidor devuelve -1 (clave no existe), propagamos -1 tal cual
 int get_value(char *key, char *value1, int *N_value2, float *V_value2, struct Paquete *value3) {
     // Validación "sin contactar"
 
     if (!key || !value1 || !N_value2 || !V_value2 || !value3) return -1; // Si algún puntero es nulo -> error "normal" del servicio
     if (!validate_key(key)) return -1; // Si el formato de la clave no es válido -> error "normal" del servicio
 
-    request_t req; // Solicitud
-    memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_GET; // Operación get
+    request_t req;                 
+    memset(&req, 0, sizeof(req)); 
+    req.op = OP_GET;              
 
-    if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
+    if (!make_reply_queue_name(req.reply_queue)) return -2; 
 
     strncpy(req.key, key, MAX_STR - 1); // Copiar clave a la solicitud
-    req.key[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    req.key[MAX_STR - 1] = '\0';        // Asegurar terminación de cadena
 
-    response_t resp; // Respuesta del servidor
-    int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    response_t resp; 
+    int comm = send_request_and_wait(&req, &resp); 
+    if (comm == -2) return -2; 
 
-    if (resp.ret == 0) { // Si la operación fue exitosa -> copiamos los resultados a los punteros de salida
+    if (resp.ret == 0) {                           // Si la operación fue exitosa -> copiamos los resultados a los punteros de salida
         strncpy(value1, resp.value1, MAX_STR - 1); // Copiar value1 de la respuesta al puntero de salida
-        value1[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+        value1[MAX_STR - 1] = '\0';                // Asegurar terminación de cadena
 
-        *N_value2 = resp.N_value2; // Copiar tamaño del array
-        for (int i = 0; i < MAX_V2; i++) V_value2[i] = resp.V_value2[i]; // Copiar valores del array
-        *value3 = resp.value3; // Copiar estructura value3
+        *N_value2 = resp.N_value2; 
+        for (int i = 0; i < MAX_V2; i++) V_value2[i] = resp.V_value2[i]; 
+        *value3 = resp.value3; 
     }
 
     return resp.ret; // 0 / -1
 }
 
-// modify_value()
+// Misma filosofía que set_value, pero la operación exige que la clave exista
 int modify_value(char *key, char *value1, int N_value2, float *V_value2, struct Paquete value3) {
     // Validaciones "sin contactar"
 
-    if (!validate_strings(key, value1)) return -1; // Si el formato de las cadenas no es válido -> error "normal" del servicio
+    if (!validate_strings(key, value1)) return -1;    // Si el formato de las cadenas no es válido -> error "normal" del servicio
     if (N_value2 < 1 || N_value2 > MAX_V2) return -1; // Si el tamaño del array no es válido -> error "normal" del servicio
-    if (!V_value2) return -1; // Si el puntero al array es nulo -> error "normal" del servicio
+    if (!V_value2) return -1;                         // Si el puntero al array es nulo -> error "normal" del servicio
 
-    request_t req; // Solicitud
-    memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_MODIFY; // Operación modify
+    request_t req; 
+    memset(&req, 0, sizeof(req)); 
+    req.op = OP_MODIFY; 
 
-    if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
+    if (!make_reply_queue_name(req.reply_queue)) return -2;
 
-    strncpy(req.key, key, MAX_STR - 1); // Copiar clave a la solicitud
-    req.key[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    strncpy(req.key, key, MAX_STR - 1); 
+    req.key[MAX_STR - 1] = '\0'; 
 
-    strncpy(req.value1, value1, MAX_STR - 1); // Copiar valor1 a la solicitud
-    req.value1[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    strncpy(req.value1, value1, MAX_STR - 1); 
+    req.value1[MAX_STR - 1] = '\0'; 
 
-    req.N_value2 = N_value2; // Copiar tamaño del array
-    for (int i = 0; i < MAX_V2; i++) req.V_value2[i] = 0.0f; // Inicializar array a cero
-    for (int i = 0; i < N_value2; i++) req.V_value2[i] = V_value2[i]; // Copiar valores del array
-    req.value3 = value3; // Copiar estructura value3 a la solicitud
+    req.N_value2 = N_value2; 
+    for (int i = 0; i < MAX_V2; i++) req.V_value2[i] = 0.0f;
+    for (int i = 0; i < N_value2; i++) req.V_value2[i] = V_value2[i]; 
+    req.value3 = value3; 
 
-    response_t resp; // Respuesta del servidor
-    int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    response_t resp; 
+    int comm = send_request_and_wait(&req, &resp); 
+    if (comm == -2) return -2; 
 
     return resp.ret; // 0 / -1
 }
 
-// delete_key()
+// Operación simple, pero mantiene la distinción -1 vs -2
 int delete_key(char *key) {
     // Validación "sin contactar"
 
@@ -261,38 +260,38 @@ int delete_key(char *key) {
 
     request_t req; // Solicitud
     memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_DELETE; // Operación delete
+    req.op = OP_DELETE; 
 
     if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
 
     strncpy(req.key, key, MAX_STR - 1); // Copiar clave a la solicitud
-    req.key[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    req.key[MAX_STR - 1] = '\0';        // Asegurar terminación de cadena
 
-    response_t resp; // Variable para recibir la respuesta del servidor
+    response_t resp;                               // Variable para recibir la respuesta del servidor
     int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    if (comm == -2) return -2;                     // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
 
     return resp.ret; // 0 / -1
 }
 
-// exist()
+// Devuelve 1/0/-1 (servicio) o -2 si no hay comunicación
 int exist(char *key) {
     // En la versión distribuida: errores del servicio -> -1; errores de comunicaciones -> -2
 
     if (!validate_key(key)) return -1; // Si el formato de la clave no es válido -> error "normal" del servicio
 
-    request_t req; // Solicitud
-    memset(&req, 0, sizeof(req)); // Inicializar a cero para evitar basura en campos no usados
-    req.op = OP_EXIST; // Operación exist
+    request_t req; 
+    memset(&req, 0, sizeof(req)); 
+    req.op = OP_EXIST; 
 
-    if (!make_reply_queue_name(req.reply_queue)) return -2; // Si no se pudo generar un nombre de cola de respuesta -> error de comunicaciones
+    if (!make_reply_queue_name(req.reply_queue)) return -2; 
 
-    strncpy(req.key, key, MAX_STR - 1); // Copiar clave a la solicitud
-    req.key[MAX_STR - 1] = '\0'; // Asegurar terminación de cadena
+    strncpy(req.key, key, MAX_STR - 1); 
+    req.key[MAX_STR - 1] = '\0'; 
 
-    response_t resp; // Variable para recibir la respuesta del servidor
+    response_t resp; 
     int comm = send_request_and_wait(&req, &resp); // Enviar solicitud y esperar respuesta
-    if (comm == -2) return -2; // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
+    if (comm == -2) return -2;                     // Si hubo un error de comunicaciones (timeout, error al enviar o recibir) -> devolvemos -2
 
     return resp.ret; // 1 / 0 / -1
 }

@@ -1,25 +1,24 @@
-// B: servidor con colas POSIX (concurrente)
+// Parte B: servidor concurrente con colas POSIX 
+// El diseño se basa en hilo por petición y se hace detach
 
-// Hilos bajo demanda
+#define _POSIX_C_SOURCE 200809L // mq_open y sigaction
 
-#define _POSIX_C_SOURCE 200809L // Para mq_open y sigaction
+#include "claves.h"  // prototipos + struct Paquete
 
-#include "claves.h" // Prototipos de la API y definición de struct Paquete
+#include <mqueue.h>  // colas POSIX
+#include <pthread.h> // threads
+#include <signal.h>  // manejo de señales
+#include <stdio.h>   // printf, perror
+#include <stdlib.h>  // malloc, free
+#include <string.h>  // memset, strncpy, strlen
+#include <errno.h>   // errno
+#include <unistd.h>  // _exit
+#include <signal.h>  // sigaction
 
-#include <mqueue.h> // Para colas POSIX
-#include <pthread.h> // Para threads
-#include <signal.h> // Para manejo de señales
-#include <stdio.h> // Para printf, perror
-#include <stdlib.h> // Para malloc, free
-#include <string.h> // Para memset, strncpy, strlen
-#include <errno.h> // Para errno
-#include <unistd.h> // Para _exit
-#include <signal.h> // Para sigaction
-
-#define SRV_QUEUE "/mq_claves_srv" // El nombre de la cola del servidor (debe empezar con '/')
-#define MAX_STR 256 // 255 chars útiles + '\0'
-#define MAX_V2 32 // Máximo número de elementos en V_value2
-#define MAX_QNAME 64 // Máximo nombre de cola
+#define SRV_QUEUE "/mq_claves_srv" // nombre de la cola del servidor 
+#define MAX_STR 256                // 255 chars útiles + '\0'
+#define MAX_V2 32                  // máximo número de elementos en V_value2
+#define MAX_QNAME 64               // máximo nombre de cola
 
 // Tipo de operación a ejecutar (parte A)
 typedef enum {
@@ -33,28 +32,28 @@ typedef enum {
 
 // Estructura de solicitud enviada por el cliente
 typedef struct {
-    op_t op; // Operación a ejecutar
+    op_t op;                     // Operación a ejecutar
     char reply_queue[MAX_QNAME]; // Nombre de la cola de respuesta del cliente
 
-    char key[MAX_STR]; // Clave (string de hasta 255 chars útiles)
-    char value1[MAX_STR]; // Valor 1 (string de hasta 255 chars útiles)
-    int  N_value2; // Número de elementos en V_value2
+    char key[MAX_STR];      // Clave (string de hasta 255 chars útiles)
+    char value1[MAX_STR];   // Valor 1 (string de hasta 255 chars útiles)
+    int  N_value2;          // Número de elementos en V_value2
     float V_value2[MAX_V2]; // Valor 2 (array de floats)
-    struct Paquete value3; // Valor 3 (estructura Paquete)
+    struct Paquete value3;  // Valor 3 (estructura Paquete)
 } request_t;
 
 // Estructura de respuesta para enviar al cliente
 typedef struct {
     int ret; // 0/-1 o 0/1/-1 según llamada
-    char value1[MAX_STR]; // Para GET
-    int  N_value2; // Para GET
-    float V_value2[MAX_V2]; // Para GET
-    struct Paquete value3; // Para GET
+    char value1[MAX_STR]; 
+    int  N_value2; 
+    float V_value2[MAX_V2];
+    struct Paquete value3; 
 } response_t;
 
-static mqd_t g_srv_mq = (mqd_t)-1; // Descriptor de la cola del servidor
+static mqd_t g_srv_mq = (mqd_t)-1; // Descriptor de la cola del servidor, global para poder cerrarla desde el manejador de señales
 
-volatile sig_atomic_t g_salir = 0; // Bandera para indicar que el servidor debe salir
+volatile sig_atomic_t g_salir = 0; // Flag para indicar que el servidor debe salir
 
 // Función para limpiar la cola del servidor y salir con el código dado
 static void cleanup_and_exit(int code) {
@@ -77,10 +76,10 @@ typedef struct {
 // Función que ejecuta cada thread para procesar una solicitud y responder al cliente
 static void* worker_fn(void *arg) {
     worker_arg_t *w = (worker_arg_t*)arg; // Convertimos el argumento a nuestro tipo definido
-    request_t req = w->req; // Copiamos la solicitud a una variable local para trabajar con ella
-    free(w); // Liberamos la memoria del argumento ya que no la necesitamos más
+    request_t req = w->req;               // Copiamos la solicitud a una variable local para trabajar con ella
+    free(w);
 
-    response_t resp; // Variable para construir la respuesta al cliente
+    response_t resp;                // Variable para construir la respuesta al cliente
     memset(&resp, 0, sizeof(resp)); // Inicializamos la estructura de respuesta a cero
 
     // Ejecutar operación (API local de la parte A)
@@ -96,8 +95,8 @@ static void* worker_fn(void *arg) {
             resp.ret = set_value(req.key, req.value1, req.N_value2, req.V_value2, req.value3);
             break;
 
-        // Ejecutamos get_value() con los parámetros recibidos en la solicitud y guardamos su resultado en resp.ret
-        // Si el resultado es 0 -> guardamos los valores obtenidos en resp.value1, resp.N_value2, resp.V_value2 y resp.value3 para enviarlos al cliente
+        /* Ejecutamos get_value() con los parámetros recibidos en la solicitud y guardamos su resultado en resp.ret
+        Si el resultado es 0 -> guardamos los valores obtenidos en resp.value1, resp.N_value2, resp.V_value2 y resp.value3 para enviarlos al cliente*/
         case OP_GET: {
             int N;
             struct Paquete p;
@@ -139,8 +138,7 @@ static void* worker_fn(void *arg) {
     // Enviar respuesta al cliente
     mqd_t cli = mq_open(req.reply_queue, O_WRONLY);
     if (cli == (mqd_t)-1) { // Si no se pudo abrir la cola de respuesta del cliente -> no podemos enviar la respuesta
-        // Aquí NO podemos devolver -2 porque ya estamos en el servidor
-        // El proxy detectará timeout/error de receive y devolverá -2
+        // Aquí NO podemos devolver -2 porque ya estamos en el servidor. El proxy detectará timeout/error de receive y devolverá -2
         pthread_exit(NULL);
     }
 
@@ -154,12 +152,12 @@ static void* worker_fn(void *arg) {
 
 // Función principal del servidor
 int main(void) {
-    struct sigaction sa; // Para configurar el manejador de señales
+    struct sigaction sa; 
     memset(&sa, 0, sizeof(sa)); // Limpiamos la estructura
-    sa.sa_handler = on_sigint; // Asignamos el manejador para SIGINT (Ctrl+C)
-    sigemptyset(&sa.sa_mask); // No bloqueamos ninguna señal adicional durante la ejecución del manejador
+    sa.sa_handler = on_sigint;  // Asignamos el manejador para SIGINT (Ctrl+C)
+    sigemptyset(&sa.sa_mask);   // No bloqueamos ninguna señal adicional durante la ejecución del manejador
 
-    sigaction(SIGINT, &sa, NULL); // Configuramos el manejador para SIGINT (Ctrl+C) para salir limpiamente
+    sigaction(SIGINT, &sa, NULL);  // Configuramos el manejador para SIGINT (Ctrl+C) para salir limpiamente
     sigaction(SIGTERM, &sa, NULL); // Configuramos el manejador para SIGTERM para salir limpiamente
 
     mq_unlink(SRV_QUEUE); // Limpiamos la cola por si ya existía de una ejecución anterior (evita errores al crearla)
@@ -167,7 +165,7 @@ int main(void) {
     // Configuramos los atributos de la cola del servidor
     struct mq_attr attr;
     memset(&attr, 0, sizeof(attr));
-    attr.mq_maxmsg  = 10; // MLímite seguro para el número de mensajes en la cola
+    attr.mq_maxmsg  = 10;                // Límite seguro para el número de mensajes en la cola
     attr.mq_msgsize = sizeof(request_t); // Tamaño máximo de cada mensaje
 
     // Creamos la cola del servidor para recibir solicitudes de los clientes
@@ -184,10 +182,10 @@ int main(void) {
         request_t req; // Variable para recibir la solicitud del cliente
         ssize_t n = mq_receive(g_srv_mq, (char*)&req, sizeof(req), NULL); // Recibimos una solicitud de un cliente
         
-        if (n < 0) { // Si hubo un error al recibir -> comprobamos si fue por señal o por otro motivo
+        if (n < 0) {                      // Si hubo un error al recibir -> comprobamos si fue por señal o por otro motivo
             if (errno == EINTR) continue; // Si fue interrumpido por señal -> continuamos el bucle para salir si g_salir ya es 1
-            perror("mq_receive"); // Si fue otro error -> lo informamos y salimos limpiamente
-            cleanup_and_exit(1); // Limpiamos y salimos con error
+            perror("mq_receive");         // Si fue otro error -> lo informamos y salimos limpiamente
+            cleanup_and_exit(1);          // Limpiamos y salimos con error
         }
         if ((size_t)n != sizeof(req)) { // Si el mensaje recibido no tiene el tamaño esperado -> lo ignoramos
             continue;
@@ -202,13 +200,13 @@ int main(void) {
         pthread_t th;
         if (pthread_create(&th, NULL, worker_fn, w) == 0) { // Si se pudo crear el thread -> lo detach para que se limpie automáticamente al terminar
             pthread_detach(th);
-        } else { // Si no se pudo crear el thread -> liberamos la memoria asignada para esta solicitud
+        } else { 
             free(w);
         }
     }
     
-    printf("\nCerrando servidor de forma segura...\n"); // Mensaje informativo de que el servidor está cerrando
-    cleanup_and_exit(0); // Limpiamos y salimos con éxito
+    printf("\nCerrando servidor de forma segura...\n"); 
+    cleanup_and_exit(0); 
     
     return 0;
 }
