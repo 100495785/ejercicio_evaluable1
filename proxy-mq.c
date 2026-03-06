@@ -45,7 +45,7 @@ typedef struct {
 typedef struct {
     int ret;                 // Retorno de la operación del servidor
     char value1[MAX_STR];    
-    int  N_value2; / / Para GET
+    int  N_value2;           // Para GET
     float V_value2[MAX_V2]; 
     struct Paquete value3;
 } response_t;
@@ -180,6 +180,7 @@ int set_value(char *key, char *value1, int N_value2, float *V_value2, struct Paq
     // Inicializamos el vector completo para que el mensaje sea determinista (sin basura)
     for (int i = 0; i < MAX_V2; i++) req.V_value2[i] = 0.0f; 
     for (int i = 0; i < N_value2; i++) req.V_value2[i] = V_value2[i]; 
+    req.value3 = value3;
 
     response_t resp;
     int comm = send_request_and_wait(&req, &resp); 
