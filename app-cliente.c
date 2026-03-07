@@ -1,4 +1,4 @@
-// Programa de test para la API de claves (local)
+// Programa de test para la API de claves
 
 #include <stdio.h>   // printf
 #include <string.h>  // strcmp, memset
@@ -35,7 +35,7 @@ static int check_float_vec(const float *a, const float *b, int n) {
 // Batería de pruebas para la API local (claves.c)
 int main(void) {
     // Cabecera para distinguir la ejecución local / distribuida (el ejecutable es el mismo test)
-    printf("=== BATERIA DE PRUEBAS (local) ===\n");
+    printf("=== BATERIA DE PRUEBAS ===\n");
 
     // Estado inicial limpio
     int r = destroy();
