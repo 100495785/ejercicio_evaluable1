@@ -13,7 +13,7 @@ se empaqueta la operación en un mensaje y la envía a un servidor a través de 
 #include <unistd.h>  // getpid
 #include <time.h>    // clock_gettime
 
-#define SRV_QUEUE   "/mq_claves_srv" // nombre de la cola del servidor
+#define SRV_QUEUE   "/mq_claves_srv_100495785" // nombre de la cola del servidor
 #define MAX_STR 256  // 255 chars útiles + '\0'
 #define MAX_V2 32    // máximo número de elementos en V_value2
 #define MAX_QNAME 64 // máximo nombre de cola

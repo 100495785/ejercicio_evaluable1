@@ -18,7 +18,7 @@ RPATH = -Wl,-rpath,'$$ORIGIN'
 
 
 # Regla principal que se ejecuta al escribir simplemente 'make'
-all: libclaves.so cliente_local
+all: libclaves.so cliente_local all_b
 
 
 # 1. Compilar el objeto con código independiente de posición (necesario para .so)
@@ -38,10 +38,6 @@ libclaves.so: claves.o
 cliente_local: app-cliente.c libclaves.so claves.h
 	$(CC) $(CFLAGS) -o cliente_local app-cliente.c -L. -lclaves $(RPATH)
 
-
-# Regla para limpiar los archivos generados y dejar el directorio limpio
-clean:
-	rm -f *.o *.so cliente_local
 
 
 # Añadidos para la parte B de la práctica
@@ -70,6 +66,8 @@ servidor_mq: servidor-mq.o libclaves.so claves.h
 	$(CC) $(CFLAGS) -o servidor_mq servidor-mq.o -L. -lclaves $(RPATH) -lrt
 
 
-# Regla extra para limpiar también los binarios de la Parte B
-clean_b: clean
-	rm -f proxy-mq.o servidor-mq.o cliente_mq servidor_mq libproxyclaves.so
+
+
+# REGLA PARA BORRAR TODO (incluyendo binarios de la Parte A y B)
+clean:
+	rm -f *.o *.so cliente_local cliente_mq servidor_mq
