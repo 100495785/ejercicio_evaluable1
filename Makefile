@@ -70,4 +70,5 @@ servidor_mq: servidor-mq.o libclaves.so claves.h
 
 # REGLA PARA BORRAR TODO (incluyendo binarios de la Parte A y B)
 clean:
+	-@pkill servidor_mq 2>/dev/null || true
 	rm -f claves.o cliente_local cliente_mq libclaves.so libproxyclaves.so proxy-mq.o servidor-mq.o servidor_mq
