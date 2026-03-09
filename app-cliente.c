@@ -67,7 +67,7 @@ int main(void) {
     r = set_value(key1, "valor1", 3, v2_1, p1);
     CHECK_EQ_INT("set_value(\"k1\") OK", r, 0);
 
-    // 4. Partición "clave duplicada": volver a insertar misma key debe fallar (-1).
+    // 4. Partición "clave duplicada": volver a insertar misma key debe fallar (-1)
     r = set_value(key1, "otro", 3, v2_1, p1);
     CHECK_EQ_INT("set_value(\"k1\") duplicada", r, -1);
 
@@ -142,13 +142,13 @@ int main(void) {
     r = exist(key1);
     CHECK_EQ_INT("exist(\"k1\") tras delete", r, 0);
 
-    // 15. set_value() con N=1 (limite inferior) -> OK
+    // 14. set_value() con N=1 (limite inferior) -> OK
     struct Paquete p_min = {4, 5, 6};
     float v2_min[1] = {42.0f};
     r = set_value(key_min, "v_min", 1, v2_min, p_min);
     CHECK_EQ_INT("set_value k_min N=1", r, 0);
 
-    // 16. comprobacion de get_value() para k_min
+    // 15. comprobacion de get_value() para k_min
     memset(out_v1, 0, sizeof(out_v1));
     out_N = 0;
     memset(out_v2, 0, sizeof(out_v2));
@@ -164,14 +164,14 @@ int main(void) {
         printf("[ OK ] V_value2 k_min coincide\n");
     }
 
-    // 17. set_value() con N=32 (limite superior) -> OK
+    // 16. set_value() con N=32 (limite superior) -> OK
     struct Paquete p_max = {7,8,9};
     float v2_max[32];
     for (int i = 0; i < 32; i++) v2_max[i] = (float)(i + 1) * 1.5f;
     r = set_value(key_max, "v_max", 32, v2_max, p_max);
     CHECK_EQ_INT("set_value k_max N=32", r, 0);
 
-    // 18. comprobacion get_value() para k_max  
+    // 17. comprobacion get_value() para k_max  
     memset(out_v1, 0, sizeof(out_v1));
     out_N = 0;
     memset(out_v2, 0, sizeof(out_v2));
@@ -187,7 +187,7 @@ int main(void) {
         printf("[ OK ] V_value2 k_max coincide\n");
     }
 
-    // 26. limpieza final: borrar claves creadas
+    // 18. limpieza final: borrar claves creadas
     CHECK_EQ_INT("delete_key k_min", delete_key(key_min), 0);
     CHECK_EQ_INT("delete_key k_max", delete_key(key_max), 0);
 
