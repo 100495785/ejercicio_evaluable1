@@ -73,6 +73,20 @@ typedef struct {
     request_t req;
 } worker_arg_t;
 
+// Devuelve el nombre textual de la operación recibida
+static const char* op_to_string(op_t op) {
+    switch (op) {
+        case OP_DESTROY: return "DESTROY";
+        case OP_SET:     return "SET_VALUE";
+        case OP_GET:     return "GET_VALUE";
+        case OP_MODIFY:  return "MODIFY_VALUE";
+        case OP_DELETE:  return "DELETE_KEY";
+        case OP_EXIST:   return "EXIST";
+        default:         return "OPERACION_DESCONOCIDA";
+    }
+}
+
+
 // Función que ejecuta cada thread para procesar una solicitud y responder al cliente
 static void* worker_fn(void *arg) {
     worker_arg_t *w = (worker_arg_t*)arg; // Convertimos el argumento a nuestro tipo definido
@@ -190,6 +204,10 @@ int main(void) {
         if ((size_t)n != sizeof(req)) { // Si el mensaje recibido no tiene el tamaño esperado -> lo ignoramos
             continue;
         }
+
+        // Imprimimos la operación recibida para depuración
+        printf("[SERVIDOR] Peticion recibida: %s\n", op_to_string(req.op));
+        fflush(stdout);
 
         // Creamos un thread para procesar esta solicitud
         worker_arg_t *w = malloc(sizeof(*w));
